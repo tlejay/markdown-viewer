@@ -1,0 +1,14 @@
+# Swift Package Manager build output
+.build/
+.swiftpm/
+Package.resolved
+
+# Assembled app bundle
+*.app
+dist/
+
+# Generated at build time by scripts/make-icon.swift
+Resources/AppIcon.icns
+
+# macOS
+.DS_Store
