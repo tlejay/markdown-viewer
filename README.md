@@ -2,6 +2,8 @@
 
 A tiny, native macOS Markdown viewer. Right-click a `.md` file → **Open With** → and it's on screen before you've let go of the mouse.
 
+![Markdown Viewer rendering a sample file in GitHub style](docs/screenshot-viewer.png)
+
 ---
 
 ## Start with Why
@@ -32,6 +34,13 @@ This isn't here to solve a problem for the whole world. It's here as a clean, ho
 - 🌓 **Light / Dark / System** appearance
 - 🔠 **Font zoom** — `⌘ +` / `⌘ −` / `⌘ 0`
 - 🪟 **Multiple files** — native window tabs, one document per window
+- 🔗 **Share a public link** — turn the document you're reading into a link anyone can open and comment on, no account needed
+
+## Share a public link
+
+Hit the share button in the toolbar and the document becomes a public URL. Whoever you send it to opens it in the browser — GitHub-styled, downloadable as a PDF, and with inline commenting: highlight any text and leave a note.
+
+![A shared document open in the browser, with a highlighted passage and an inline "Comment" button](docs/screenshot-share.png)
 
 ## Requirements
 
@@ -92,7 +101,7 @@ The whole point. Some starting ideas:
 - A sidebar table of contents generated from the headings
 - Your own `Theme` in `DocumentView.swift` (swap `.gitHub` for a custom palette)
 - Export to PDF / HTML
-- A "Share" button that posts to your own link service
+- Find-in-page (`⌘F`) that scrolls to and highlights matches
 
 Fork it, break it, make it the viewer *you* always wanted.
 
