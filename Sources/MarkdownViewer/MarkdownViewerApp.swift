@@ -14,6 +14,11 @@ struct MarkdownViewerApp: App {
             DocumentView(initialText: config.document.text, fileURL: config.fileURL)
         }
         .commands { ViewerCommands() }
+
+        // Preferences window (⌘,) — holds the Share API key + site URL.
+        Settings {
+            SettingsView()
+        }
     }
 }
 

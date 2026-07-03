@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import MarkdownUI
 
 /// The main reading surface: a scrollable, GitHub-styled render of the file.
@@ -15,6 +16,12 @@ struct DocumentView: View {
     @ObservedObject private var settings = AppSettings.shared
     @State private var text: String
     @State private var watcher: FileWatcher?
+
+    // Share state.
+    @State private var isSharing = false
+    @State private var sharedURL: URL?
+    @State private var shareError: String?
+    @State private var needsAPIKey = false
 
     init(initialText: String, fileURL: URL?) {
         self.initialText = initialText
@@ -44,6 +51,25 @@ struct DocumentView: View {
                     text = reloaded
                 }
             }
+        }
+        .alert("Link copied", isPresented: Binding(get: { sharedURL != nil }, set: { if !$0 { sharedURL = nil } })) {
+            Button("OK", role: .cancel) { sharedURL = nil }
+            if let url = sharedURL {
+                Button("Open in Browser") { NSWorkspace.shared.open(url); sharedURL = nil }
+            }
+        } message: {
+            Text(sharedURL?.absoluteString ?? "")
+        }
+        .alert("Couldn't share", isPresented: Binding(get: { shareError != nil }, set: { if !$0 { shareError = nil } })) {
+            Button("OK", role: .cancel) { shareError = nil }
+        } message: {
+            Text(shareError ?? "")
+        }
+        .alert("Set your API key", isPresented: $needsAPIKey) {
+            Button("Open Settings") { openSettings() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("To create a public share link, paste your MD_SHARE_API_KEY in Settings.")
         }
     }
 
@@ -84,6 +110,47 @@ struct DocumentView: View {
                 Image(systemName: "circle.lefthalf.filled")
             }
             .help("Appearance")
+
+            Button {
+                share()
+            } label: {
+                if isSharing {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
+            .disabled(isSharing)
+            .help("Share as public link")
         }
+    }
+
+    private func share() {
+        guard ShareSettings.shared.isConfigured else {
+            needsAPIKey = true
+            return
+        }
+        isSharing = true
+        let markdown = text
+        Task {
+            do {
+                let url = try await ShareService.share(markdown: markdown)
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(url.absoluteString, forType: .string)
+                NSWorkspace.shared.open(url)
+                sharedURL = url
+            } catch {
+                shareError = error.localizedDescription
+            }
+            isSharing = false
+        }
+    }
+
+    /// Opens the Settings window across macOS versions (the selector was
+    /// renamed from `showPreferencesWindow:` to `showSettingsWindow:` in 14).
+    private func openSettings() {
+        if NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) { return }
+        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
     }
 }
