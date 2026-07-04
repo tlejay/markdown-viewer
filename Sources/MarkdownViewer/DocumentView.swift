@@ -32,8 +32,15 @@ struct DocumentView: View {
     var body: some View {
         ScrollView {
             Markdown(text)
+                // The GitHub theme's `.text` block sets an absolute FontSize(16)
+                // that every other block (headings, code, …) scales off via `.em`.
+                // So scaling the whole document = overriding that base with an
+                // absolute point size. Using `.em(scale)` here does NOT work — it
+                // resolves against the inherited default, not the 16pt base, so the
+                // text never actually resized. `.text {}` merges onto the theme, so
+                // the GitHub foreground/background colors are preserved.
                 .markdownTheme(.gitHub.text {
-                    FontSize(.em(settings.fontScale))
+                    FontSize(16 * settings.fontScale)
                 })
                 .textSelection(.enabled)
                 .padding(.horizontal, 32)
@@ -42,6 +49,8 @@ struct DocumentView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(Color(nsColor: .textBackgroundColor))
+        // Make each opened file join one window as a tab (not a separate window).
+        .background(WindowTabConfigurator())
         .preferredColorScheme(settings.appearance.colorScheme)
         .toolbar { toolbarContent }
         .task(id: fileURL) {
@@ -153,4 +162,40 @@ struct DocumentView: View {
         if NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) { return }
         NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
     }
+}
+
+/// Coerces every document window to open as a **tab** in a single window rather
+/// than a separate window, so opening several files gives you one window with a
+/// tab bar (one tab per file) — independent of the system "Prefer tabs" setting.
+///
+/// `tabbingMode = .preferred` alone does NOT merge independently-opened document
+/// windows, so when a second file opens we explicitly fold its window into the
+/// existing document window's tab group via `addTabbedWindow`.
+private struct WindowTabConfigurator: NSViewRepresentable {
+    static let tabID = "com.madebytle.markdown-viewer.document"
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        // The window isn't attached yet in makeNSView; defer to the next runloop
+        // (by then any earlier document window has already set its identifier).
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            window.tabbingIdentifier = Self.tabID
+            window.tabbingMode = .preferred
+
+            // Find an already-open document window to join. Match by our tabbing
+            // identifier so the Settings window and panels are never included.
+            let host = NSApp.windows.first {
+                $0 !== window && $0.isVisible && $0.tabbingIdentifier == Self.tabID
+            }
+            guard let host else { return }
+            // Skip if this window is already in the host's tab group.
+            if let group = window.tabGroup, group.windows.contains(host) { return }
+            host.addTabbedWindow(window, ordered: .above)
+            window.makeKeyAndOrderFront(nil)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
