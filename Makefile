@@ -1,4 +1,4 @@
-APP_NAME := Markdown Viewer
+APP_NAME := Markdown Viewer — madebytle.com
 APP := dist/$(APP_NAME).app
 
 .PHONY: build install run clean dev

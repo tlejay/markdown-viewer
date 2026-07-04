@@ -1,9 +1,14 @@
 #!/usr/bin/env swift
 // Generates an .iconset folder of PNGs for the app icon, drawn entirely in
 // code (no image assets to ship). build.sh turns the folder into AppIcon.icns
-// via `iconutil`. Style: a rounded slate tile with the classic Markdown
-// "M▼" mark in white.
+// via `iconutil`.
+//
+// Style: madebytle.com — a near-black rounded tile with a soft emerald glow and
+// a single emerald "M" glyph (the site's signature accent #34D399). The letter
+// is taken from the real system-font glyph outline so it is optically centered
+// and filled with a subtle emerald gradient.
 import AppKit
+import CoreText
 
 let args = CommandLine.arguments
 guard args.count >= 2 else {
@@ -13,6 +18,33 @@ guard args.count >= 2 else {
 let outDir = args[1]
 try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
 
+// madebytle.com palette.
+let emerald = NSColor(srgbRed: 0.204, green: 0.827, blue: 0.600, alpha: 1) // #34D399
+let emeraldDeep = NSColor(srgbRed: 0.063, green: 0.725, blue: 0.506, alpha: 1) // #10B981
+let tileTop = NSColor(srgbRed: 0.075, green: 0.098, blue: 0.090, alpha: 1) // faint green-black
+let tileBottom = NSColor(srgbRed: 0.020, green: 0.020, blue: 0.020, alpha: 1) // #050505
+
+/// Tight outline of the "M" glyph from a heavy system font.
+func mGlyphPath(pointSize: CGFloat) -> (path: CGPath, bounds: CGRect)? {
+    let font = CTFontCreateWithName("SFPro-Heavy" as CFString, pointSize, nil)
+        .glyphFallback(system: pointSize)
+    var chars: [UniChar] = Array("M".utf16)
+    var glyphs = [CGGlyph](repeating: 0, count: chars.count)
+    guard CTFontGetGlyphsForCharacters(font, &chars, &glyphs, chars.count),
+          let path = CTFontCreatePathForGlyph(font, glyphs[0], nil)
+    else { return nil }
+    return (path, path.boundingBoxOfPath)
+}
+
+extension CTFont {
+    // If a named face is unavailable, fall back to the heavy system font.
+    func glyphFallback(system pointSize: CGFloat) -> CTFont {
+        let count = CTFontGetGlyphCount(self)
+        if count > 0 { return self }
+        return NSFont.systemFont(ofSize: pointSize, weight: .black) as CTFont
+    }
+}
+
 func drawIcon(size: CGFloat) -> NSImage {
     let image = NSImage(size: NSSize(width: size, height: size))
     image.lockFocus()
@@ -20,61 +52,47 @@ func drawIcon(size: CGFloat) -> NSImage {
 
     let inset = size * 0.06
     let rect = CGRect(x: inset, y: inset, width: size - inset * 2, height: size - inset * 2)
-    let radius = size * 0.22
-    let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+    let radius = size * 0.2237 // macOS squircle-ish corner
+    let tile = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
 
-    // Background gradient (slate → indigo).
-    path.addClip()
-    let gradient = NSGradient(colors: [
-        NSColor(calibratedRed: 0.13, green: 0.15, blue: 0.22, alpha: 1),
-        NSColor(calibratedRed: 0.20, green: 0.24, blue: 0.42, alpha: 1)
+    ctx.saveGState()
+    tile.addClip()
+
+    // Dark tile gradient.
+    NSGradient(colors: [tileTop, tileBottom])?.draw(in: rect, angle: -90)
+
+    // Soft emerald glow behind the letter.
+    let glow = NSGradient(colors: [
+        emerald.withAlphaComponent(0.22),
+        emerald.withAlphaComponent(0.0),
     ])
-    gradient?.draw(in: rect, angle: -90)
+    glow?.draw(fromCenter: CGPoint(x: rect.midX, y: rect.midY + rect.height * 0.04),
+               radius: 0,
+               toCenter: CGPoint(x: rect.midX, y: rect.midY + rect.height * 0.04),
+               radius: rect.width * 0.55,
+               options: [])
 
-    // Markdown mark: "M" with a downward triangle, drawn as a bordered badge.
-    let badgeInset = size * 0.20
-    let badge = CGRect(x: rect.minX + badgeInset,
-                       y: rect.minY + badgeInset * 1.15,
-                       width: rect.width - badgeInset * 2,
-                       height: rect.height - badgeInset * 2.3)
-    let stroke = size * 0.05
-    let badgePath = NSBezierPath(roundedRect: badge, xRadius: size * 0.06, yRadius: size * 0.06)
-    badgePath.lineWidth = stroke
-    NSColor.white.setStroke()
-    badgePath.stroke()
+    // The "M" glyph, gradient-filled and centered on its own tight bounds.
+    if let (glyph, gBounds) = mGlyphPath(pointSize: rect.height * 0.86), gBounds.width > 0 {
+        let targetH = rect.height * 0.52
+        let scale = targetH / gBounds.height
+        let scaledW = gBounds.width * scale
+        let tx = rect.midX - (gBounds.midX * scale)
+        let ty = rect.midY - (gBounds.midY * scale)
 
-    ctx.setFillColor(NSColor.white.cgColor)
+        ctx.saveGState()
+        ctx.translateBy(x: tx, y: ty)
+        ctx.scaleBy(x: scale, y: scale)
+        ctx.addPath(glyph)
+        ctx.clip()
+        // Draw the emerald gradient within the glyph's (unscaled) bounds.
+        let fillRect = gBounds.insetBy(dx: -gBounds.width, dy: -gBounds.height)
+        NSGradient(colors: [emerald, emeraldDeep])?.draw(in: fillRect, angle: -90)
+        ctx.restoreGState()
+        _ = scaledW
+    }
 
-    // Two "M" legs.
-    let legW = badge.width * 0.13
-    let gap = badge.width * 0.14
-    let mTop = badge.maxY - badge.height * 0.24
-    let mBottom = badge.minY + badge.height * 0.30
-    let leftX = badge.minX + badge.width * 0.16
-
-    // Left leg
-    ctx.fill(CGRect(x: leftX, y: mBottom, width: legW, height: mTop - mBottom))
-    // Middle valley leg
-    ctx.fill(CGRect(x: leftX + legW + gap, y: mBottom, width: legW, height: mTop - mBottom))
-    // Top connector between the two legs
-    ctx.fill(CGRect(x: leftX, y: mTop - legW, width: legW * 2 + gap, height: legW))
-
-    // Down arrow on the right.
-    let arrowX = badge.maxX - badge.width * 0.26
-    let arrowW = badge.width * 0.20
-    let shaftW = arrowW * 0.34
-    let arrowTop = mTop
-    let headH = badge.height * 0.20
-    let shaftBottom = mBottom + headH
-    // shaft
-    ctx.fill(CGRect(x: arrowX + (arrowW - shaftW) / 2, y: shaftBottom, width: shaftW, height: arrowTop - shaftBottom))
-    // head (triangle)
-    ctx.move(to: CGPoint(x: arrowX, y: shaftBottom + headH * 0.1))
-    ctx.addLine(to: CGPoint(x: arrowX + arrowW, y: shaftBottom + headH * 0.1))
-    ctx.addLine(to: CGPoint(x: arrowX + arrowW / 2, y: mBottom))
-    ctx.closePath()
-    ctx.fillPath()
-
+    ctx.restoreGState()
     image.unlockFocus()
     return image
 }

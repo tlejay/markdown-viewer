@@ -7,7 +7,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."          # project root (mac-app/)
 
-APP_NAME="Markdown Viewer"
+APP_NAME="Markdown Viewer — madebytle.com"
 EXECUTABLE="MarkdownViewer"
 BUNDLE_ID="com.madebytle.markdown-viewer"
 DIST="dist"

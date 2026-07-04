@@ -5,7 +5,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-APP_NAME="Markdown Viewer"
+APP_NAME="Markdown Viewer — madebytle.com"
 APP="dist/$APP_NAME.app"
 DEST_DIR="$HOME/Applications"
 
